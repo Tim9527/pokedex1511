@@ -214,25 +214,52 @@ void remove_pokemon(Pokedex pokedex) {
 
     if (pokedex->head != NULL) {
         if (pokedex->numNodes == 1) {
+
             free(pokedex->head);
             reset_pokedex(pokedex);
+
         } else if (pokedex->selectedNode == pokedex->last) {
+
             pokedex->selectedNode = pokedex->last->previous;
             free(pokedex->last);
             pokedex->selectedNode->next = NULL;
             pokedex->last = pokedex->selectedNode;
-
             pokedex->numNodes -= 1;
+
+        } else if (pokedex->selectedNode == pokedex->head && pokedex->numNodes > 1){
+
+            pokedex->selectedNode = pokedex->head->next;
+            free(pokedex->head);
+            pokedex->selectedNode->previous = NULL;
+            pokedex->head = pokedex->selectedNode;
+            pokedex->numNodes -= 1;
+
         } else {
 
+            struct pokenode *memToFree = pokedex->selectedNode;
+            pokedex->selectedNode = pokedex->selectedNode->next;
+            pokedex->selectedNode->previous = memToFree->previous;
+            pokedex->selectedNode->previous->next = pokedex->selectedNode;
+            pokedex->numNodes -= 1;
+
+            free(memToFree);
         }
     }
 
 }
 
 void destroy_pokedex(Pokedex pokedex) {
-    fprintf(stderr, "exiting because you have not implemented the destroy_pokedex function in pokedex.c\n");
-    exit(1);
+
+    int i = 0;
+    int maxIterations = pokedex->numNodes;
+    
+    while (i < maxIterations) {
+        remove_pokemon(pokedex);
+        i++;
+    }
+
+    free(pokedex);
+
 }
 
 ////////////////////////////////////////////////////////////////////////
