@@ -166,8 +166,6 @@ void print_pokemon(Pokedex pokedex) {
             print_pokemon_to_list(pokedex, p);
             p = p->next;
         }
-    } else {
-        printerr("ERROR: The Pokédex is empty!");
     }
 
 }
@@ -215,12 +213,14 @@ void remove_pokemon(Pokedex pokedex) {
     if (pokedex->head != NULL) {
         if (pokedex->numNodes == 1) {
 
+            destroy_pokemon(pokedex->head->pokemon);
             free(pokedex->head);
             reset_pokedex(pokedex);
 
         } else if (pokedex->selectedNode == pokedex->last) {
 
             pokedex->selectedNode = pokedex->last->previous;
+            destroy_pokemon(pokedex->last->pokemon);
             free(pokedex->last);
             pokedex->selectedNode->next = NULL;
             pokedex->last = pokedex->selectedNode;
@@ -229,6 +229,7 @@ void remove_pokemon(Pokedex pokedex) {
         } else if (pokedex->selectedNode == pokedex->head && pokedex->numNodes > 1){
 
             pokedex->selectedNode = pokedex->head->next;
+            destroy_pokemon(pokedex->head->pokemon);
             free(pokedex->head);
             pokedex->selectedNode->previous = NULL;
             pokedex->head = pokedex->selectedNode;
@@ -242,6 +243,7 @@ void remove_pokemon(Pokedex pokedex) {
             pokedex->selectedNode->previous->next = pokedex->selectedNode;
             pokedex->numNodes -= 1;
 
+            destroy_pokemon(memToFree->pokemon);
             free(memToFree);
         }
     }
@@ -252,7 +254,7 @@ void destroy_pokedex(Pokedex pokedex) {
 
     int i = 0;
     int maxIterations = pokedex->numNodes;
-    
+
     while (i < maxIterations) {
         remove_pokemon(pokedex);
         i++;
@@ -272,13 +274,22 @@ void go_exploring(Pokedex pokedex, int seed, int factor, int how_many) {
 }
 
 int count_found_pokemon(Pokedex pokedex) {
-    fprintf(stderr, "exiting because you have not implemented the count_found_pokemon function in pokedex.c\n");
-    exit(1);
+
+    int foundNum = 0;
+    struct pokenode *p = pokedex->head;
+
+    while (p != NULL) {
+        if (p->found == TRUE) {
+            foundNum++;
+        }
+        p = p->next;
+    }
+
+    return foundNum;
 }
 
 int count_total_pokemon(Pokedex pokedex) {
-    fprintf(stderr, "exiting because you have not implemented the count_total_pokemon function in pokedex.c\n");
-    exit(1);
+    return pokedex->numNodes;
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -410,8 +421,8 @@ static void print_caught_pokemon(struct pokenode *pokenode) {
 
     printf("Id: %03d\n", id);
     printf("Name: %s\n", name);
-    printf("Height: %.2lfm\n", height);
-    printf("Weight: %.2lfkg\n", weight);
+    printf("Height: %.1lfm\n", height);
+    printf("Weight: %.1lfkg\n", weight);
 
     printf("Type: %s", pokemon_type_to_string(firstType));
     if (secondType != NONE_TYPE) {
