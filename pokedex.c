@@ -724,7 +724,6 @@ static int contains_search(char *text, char *query) {
 
     int textLength = length_of_string(text) + 1;
     int queryLength = length_of_string(query) + 1;
-
     char lwrText[textLength];
     char lwrQuery[queryLength];
 
@@ -751,17 +750,17 @@ static int contains_search(char *text, char *query) {
     int i = 0;
     int j = 0;
 
-    //Following 10 lines of general purpose C code are based on the following
-    //StackOverflow answer by user MikeCAT (25/02/16).
+    //Following 10 (exactly) lines of general purpose C code are based on the
+    //following StackOverflow answer by user MikeCAT (25/02/16).
     //https://stackoverflow.com/a/35631538
-    while ((text[j] != '\0') && (query[i] != '\0')) {
-        if (query[i] == text[j]) {
+    while ((lwrText[j] != '\0') && (lwrQuery[i] != '\0')) {
+        if (lwrQuery[i] == lwrText[j]) {
             i++;
         }
         j++;
     }
 
-    if (query[i] == '\0') {
+    if (lwrQuery[i] == '\0') {
         return TRUE;
     }
 
