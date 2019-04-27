@@ -3,24 +3,17 @@
 //
 // This program was written by Avi Dargan (z5258082)
 // on 23/04/19-02/05-19
-//
-// Version 1.0.0: Assignment released.
-// Version 1.0.1: Minor clarifications about `struct pokenode`.
-// Version 1.1.0: Moved destroy_pokedex function to correct location.
 // Version 1.1.1: Renamed "pokemon_id" to "id" in change_current_pokemon.
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
 
-// Add any extra #includes your code needs here.
-//
-// But note you are not permitted to use functions from string.h
-// so do not #include <string.h>
-
 #include "pokedex.h"
 
-// Add your own #defines here.
+////////////////////////////////////////////////////////////////////////////////
+//                             AVI's DEFINITIONS                             //
+//////////////////////////////////////////////////////////////////////////////
 
 //Colour the output of the error messages to make them clear;
 //Code from StackOverflow:
@@ -33,19 +26,6 @@
 
 #define NULL_ID -1
 
-// Note you are not permitted to use arrays in struct pokedex,
-// you must use a linked list.
-//
-// You are also not permitted to use arrays in any of the functions
-// below.
-//
-// The only exception is that char arrays are permitted for
-// search_pokemon and functions it may call, as well as the string
-// returned by pokemon_name (from pokemon.h).
-//
-// You will need to add fields to struct pokedex.
-// You may change or delete the head field.
-
 struct pokedex {
     struct pokenode *head;
     struct pokenode *last;
@@ -53,12 +33,6 @@ struct pokedex {
     int numNodes;
     int lowestID;
 };
-
-
-// You don't have to use the provided struct pokenode, you are free to
-// make your own struct instead.
-// If you use the provided struct pokenode, you will need to add fields
-// to it to store other information.
 
 struct pokenode {
     struct pokenode *next;
@@ -68,10 +42,11 @@ struct pokenode {
     struct pokenode *evoNode;
 };
 
-// Add any other structs you define here.
 
+////////////////////////////////////////////////////////////////////////////////
+//                             AVI's PROTOTYPES                              //
+//////////////////////////////////////////////////////////////////////////////
 
-// Add prototypes for any extra functions you create here.
 static struct pokenode *create_pokenode(Pokemon pokemon);
 static void check_for_duplicate_id(Pokedex pokedex, struct pokenode *node);
 static void add_node_to_dex(Pokedex pokedex, struct pokenode *node);
@@ -90,18 +65,26 @@ static struct pokenode *search_for_id(Pokedex pokedex, int id);
 
 static void print_evo_format(struct pokenode *pokenode);
 
+static void clean_sub_dex(Pokedex pokedex);
+
+static void populate_subDex_types(Pokedex pokedex, Pokedex subDex, pokemon_type type);
+static int common_type(struct pokenode *node, pokemon_type type);
+
+static void populate_subDex_found(Pokedex pokedex, Pokedex subDex);
+static void add_pokemon_in_order(Pokedex pokedex, struct pokenode *node);
+
+
 static void printerr(char *message);
 
-// You need to implement the following 20 functions.
-// In other words, replace the lines calling fprintf & exit with your code.
-// You can find descriptions of what each function should do in pokedex.h
-
+////////////////////////////////////////////////////////////////////////////////
 
 Pokedex new_pokedex(void) {
     Pokedex new_pokedex = malloc(sizeof (struct pokedex));
     assert(new_pokedex != NULL);
 
     new_pokedex->head = NULL;
+    new_pokedex->selectedNode = NULL;
+    new_pokedex->selectedNode = NULL;
     new_pokedex->numNodes = 0;
     new_pokedex->lowestID = NULL_ID;
 
@@ -341,41 +324,58 @@ void add_pokemon_evolution(Pokedex pokedex, int from_id, int to_id) {
 
 void show_evolutions(Pokedex pokedex) {
 
-    struct pokenode *p = pokedex->selectedNode;
+    if (pokedex->head != NULL) {
+        struct pokenode *p = pokedex->selectedNode;
 
-    while(p->evoNode != NULL) {
+        while(p->evoNode != NULL) {
+            print_evo_format(p);
+            printf(" --> ");
+            p = p->evoNode;
+        }
         print_evo_format(p);
-        printf(" --> ");
-        p = p->evoNode;
+        printf("\n");
     }
-    print_evo_format(p);
-    printf("\n");
-
 }
 
 int get_next_evolution(Pokedex pokedex) {
 
-    struct pokenode *node = pokedex->selectedNode;
-    if (node->evoNode != NULL) {
-        return pokemon_id(node->evoNode->pokemon);
-    } else {
+    if (pokedex->head != NULL) {
+        struct pokenode *node = pokedex->selectedNode;
+        if (node->evoNode != NULL) {
+            return pokemon_id(node->evoNode->pokemon);
+        }
+
         return DOES_NOT_EVOLVE;
     }
 
+    return DOES_NOT_EVOLVE;
 }
 
 ////////////////////////////////////////////////////////////////////////
 //                         Stage 5 Functions                          //
-////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////
 
 Pokedex get_pokemon_of_type(Pokedex pokedex, pokemon_type type) {
-    fprintf(stderr, "exiting because you have not implemented the get_pokemon_of_type function in pokedex.c\n");
-    exit(1);
+
+    if (type == NONE_TYPE || type == INVALID_TYPE || type == MAX_TYPE) {
+        printerr("ERROR: Please enter a valid type!");
+    }
+
+    Pokedex subDex = new_pokedex();
+    populate_subDex_types(pokedex, subDex, type);
+    clean_sub_dex(subDex);
+
+    return subDex;
+
 }
 
 Pokedex get_found_pokemon(Pokedex pokedex) {
-    fprintf(stderr, "exiting because you have not implemented the get_found_pokemon function in pokedex.c\n");
-    exit(1);
+
+    Pokedex subDex = new_pokedex();
+    populate_subDex_found(pokedex, subDex);
+    clean_sub_dex(subDex);
+    return subDex;
+
 }
 
 Pokedex search_pokemon(Pokedex pokedex, char *text) {
@@ -383,8 +383,9 @@ Pokedex search_pokemon(Pokedex pokedex, char *text) {
     exit(1);
 }
 
-// Add definitions for your own functions below.
-// Make them static to limit their scope to this file.
+////////////////////////////////////////////////////////////////////////////////
+//                              AVI's FUNCTIONS                              //
+//////////////////////////////////////////////////////////////////////////////
 
 //create_pokenode utilised malloc to assign a chunk of memory to a pokenode,
 //then populate it with the Pokémon it recieves, and returns a pointer to a
@@ -405,7 +406,6 @@ static struct pokenode *create_pokenode(Pokemon pokemon) {
     node->evoNode = NULL;
 
     return node;
-
 }
 
 //add_node_to_dex has two branches of code. First, if this node is to be the
@@ -431,7 +431,6 @@ static void add_node_to_dex(Pokedex pokedex, struct pokenode *node) {
 
     pokedex->last = node;
     pokedex->numNodes++;
-
 }
 
 //check_for_duplicate_id checks if there is already a Pokémon with that ID
@@ -607,6 +606,100 @@ static void print_evo_format(struct pokenode *pokenode) {
     }
 
 }
+
+//clean_sub_dex cleans new SubDex's of their evolution data and marks every
+//Pokémon as found.
+static void clean_sub_dex(Pokedex pokedex) {
+
+    struct pokenode *p = pokedex->head;
+    while (p != NULL) {
+        p->evoNode = NULL;
+        p->found = TRUE;
+        p = p->next;
+    }
+
+}
+
+//populate_subDex_types finds every Pokémon with the given type in the original
+//Pokédex, and copies them to the subDex.
+static void populate_subDex_types(Pokedex pokedex, Pokedex subDex, pokemon_type type) {
+
+    struct pokenode *p = pokedex->head;
+    while (p != NULL) {
+
+        if (common_type(p, type) && p->found) {
+            add_pokemon(subDex, clone_pokemon(p->pokemon));
+        }
+
+        p = p->next;
+    }
+
+}
+
+//Checks if the passed Pokémon (inside the pokenode) is of the given type, be it
+//primary or secondary.
+static int common_type(struct pokenode *node, pokemon_type type) {
+
+    if (pokemon_first_type(node->pokemon) == type) {
+        return TRUE;
+    } else if (pokemon_second_type(node->pokemon) == type) {
+        return TRUE;
+    } else {
+        return FALSE;
+    }
+
+}
+
+//Finds every "found" Pokémon in the original Pokédex, and copies
+//them to the subDex.
+static void populate_subDex_found(Pokedex pokedex, Pokedex subDex) {
+
+    struct pokenode *p = pokedex->head;
+    while (p != NULL) {
+
+        if (p->found) {
+            struct pokenode *node = create_pokenode(clone_pokemon(p->pokemon));
+            add_pokemon_in_order(subDex, node);
+        }
+
+        p = p->next;
+    }
+
+}
+
+static void add_pokemon_in_order(Pokedex pokedex, struct pokenode *node) {
+
+    if (pokedex->numNodes == 0) {
+        pokedex->head = node;
+        node->previous = NULL;
+        pokedex->selectedNode = pokedex->head;
+        pokedex->lowestID = pokemon_id(node->pokemon);
+    } else {
+        if (pokemon_id(node->pokemon) < pokemon_id(pokedex->head->pokemon)) {
+            node->next = pokedex->head;
+            pokedex->head = node;
+            node->next->previous = node;
+            pokedex->selectedNode = node;
+            pokedex->lowestID = pokemon_id(node->pokemon);
+        } else {
+            struct pokenode *p = pokedex->head;
+            while(p->next != NULL && (pokemon_id(node->pokemon) > pokemon_id(p->next->pokemon))) {
+                p = p->next;
+            }
+            node->next = p->next;
+            p->next = node;
+            node->previous = p;
+            if (node->next == NULL) {
+                pokedex->last = node;
+            } else {
+                node->next->previous = node;
+            }
+        }
+    }
+
+    pokedex->numNodes++;
+}
+
 
 //printerr is a quick helper function to make outputting errors a bit easier.
 //Colours an input string red and prints it to the error output stream.
