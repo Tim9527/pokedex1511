@@ -15,12 +15,6 @@
 //                             AVI's DEFINITIONS                             //
 //////////////////////////////////////////////////////////////////////////////
 
-//Colour the output of the error messages to make them clear;
-//Code from StackOverflow:
-//https://stackoverflow.com/questions/3219393/stdlib-and-colored-output-in-c
-#define RED "\033[0;31m"
-#define RESET "\033[0m"
-
 #define TRUE 1
 #define FALSE 0
 
@@ -73,6 +67,9 @@ static int common_type(struct pokenode *node, pokemon_type type);
 static void populate_subDex_found(Pokedex pokedex, Pokedex subDex);
 static void add_pokemon_in_order(Pokedex pokedex, struct pokenode *node);
 
+static void populate_subDex_search(Pokedex pokedex, Pokedex subDex, char *query);
+static int contains_search(char *text, char *query);
+static int length_of_string(char *string);
 
 static void printerr(char *message);
 
@@ -374,13 +371,19 @@ Pokedex get_found_pokemon(Pokedex pokedex) {
     Pokedex subDex = new_pokedex();
     populate_subDex_found(pokedex, subDex);
     clean_sub_dex(subDex);
+
     return subDex;
 
 }
 
 Pokedex search_pokemon(Pokedex pokedex, char *text) {
-    fprintf(stderr, "exiting because you have not implemented the search_pokemon function in pokedex.c\n");
-    exit(1);
+
+    Pokedex subDex = new_pokedex();
+    populate_subDex_search(pokedex, subDex, text);
+    clean_sub_dex(subDex);
+
+    return subDex;
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -396,7 +399,6 @@ static struct pokenode *create_pokenode(Pokemon pokemon) {
 
     //malloc returns a null pointer if there is no available memory
     if (node == NULL) {
-        //Coloured error mesasge, for clarity's sake.
         printerr("ERROR: Out of memory!");
     }
 
@@ -442,7 +444,6 @@ static void check_for_duplicate_id(Pokedex pokedex, struct pokenode *node) {
 
     while(p != NULL) {
         if (pokemon_id(p->pokemon) == pokemon_id(node->pokemon)) {
-            //Coloured error mesasge, for clarity's sake.
             printerr("ERROR: Duplicate Pokémon ID!");
         }
 
@@ -667,6 +668,9 @@ static void populate_subDex_found(Pokedex pokedex, Pokedex subDex) {
 
 }
 
+//add_pokemon_in_order is a special version of add_node_to_dex().
+//The logic is the same, simply with amendments to account for when a node is
+//added to the middle of the list.
 static void add_pokemon_in_order(Pokedex pokedex, struct pokenode *node) {
 
     if (pokedex->numNodes == 0) {
@@ -700,10 +704,84 @@ static void add_pokemon_in_order(Pokedex pokedex, struct pokenode *node) {
     pokedex->numNodes++;
 }
 
+//Look through the Pokédex for Pokémon with names that contain the search query
+//then add them to the subDex.
+static void populate_subDex_search(Pokedex pokedex, Pokedex subDex, char *query) {
+
+    struct pokenode *p = pokedex->head;
+    while (p != NULL) {
+
+        if (contains_search(pokemon_name(p->pokemon), query) && p->found) {
+            add_pokemon(subDex, clone_pokemon(p->pokemon));
+        }
+
+        p = p->next;
+    }
+
+}
+
+static int contains_search(char *text, char *query) {
+
+    int textLength = length_of_string(text) + 1;
+    int queryLength = length_of_string(query) + 1;
+
+    char lwrText[textLength];
+    char lwrQuery[queryLength];
+
+    if (queryLength > textLength) {
+        return FALSE;
+    }
+
+    for (int i = 0; i < textLength; i++) {
+        if (text[i] >= 'A' && text[i] <= 'Z') {
+            lwrText[i] = text[i] + 32;
+        } else {
+            lwrText[i] = text[i];
+        }
+    }
+
+    for (int i = 0; i < queryLength; i++) {
+        if (query[i] >= 'A' && query[i] <= 'Z') {
+            lwrQuery[i] = query[i] + 32;
+        } else {
+            lwrQuery[i] = query[i];
+        }
+    }
+
+    int i = 0;
+    int j = 0;
+
+    //Following 10 lines of general purpose C code are based on the following
+    //StackOverflow answer by user MikeCAT (25/02/16).
+    //https://stackoverflow.com/a/35631538
+    while ((text[j] != '\0') && (query[i] != '\0')) {
+        if (query[i] == text[j]) {
+            i++;
+        }
+        j++;
+    }
+
+    if (query[i] == '\0') {
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+//length_of_string returns the length of the given string.
+static int length_of_string(char *string) {
+
+    int i = 0;
+    while (string[i] != '\0') {
+        i++;
+    }
+
+    return i;
+}
 
 //printerr is a quick helper function to make outputting errors a bit easier.
-//Colours an input string red and prints it to the error output stream.
+//Prints the given string to the error output stream.
 static void printerr(char *message) {
-        fprintf(stderr, RED"%s\n"RESET, message);
+        fprintf(stderr, "%s\n", message);
         exit(1);
 }
