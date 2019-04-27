@@ -1,8 +1,8 @@
 // Assignment 2 19T1 COMP1511: Pokedex
 // pokedex.c
 //
-// This program was written by YOUR-NAME-HERE (z5555555)
-// on INSERT-DATE-HERE
+// This program was written by Avi Dargan (z5258082)
+// on 23/04/19-02/05-19
 //
 // Version 1.0.0: Assignment released.
 // Version 1.0.1: Minor clarifications about `struct pokenode`.
@@ -25,11 +25,13 @@
 //Colour the output of the error messages to make them clear;
 //Code from StackOverflow:
 //https://stackoverflow.com/questions/3219393/stdlib-and-colored-output-in-c
-#define COL_ERR_RED "\033[0;31m"
-#define COL_ERR_RESET "\033[0m"
+#define RED "\033[0;31m"
+#define RESET "\033[0m"
 
 #define TRUE 1
 #define FALSE 0
+
+#define NULL_ID -1
 
 // Note you are not permitted to use arrays in struct pokedex,
 // you must use a linked list.
@@ -49,6 +51,7 @@ struct pokedex {
     struct pokenode *last;
     struct pokenode *selectedNode;
     int numNodes;
+    int lowestID;
 };
 
 
@@ -62,6 +65,7 @@ struct pokenode {
     struct pokenode *previous;
     Pokemon         pokemon;
     int found;
+    struct pokenode *evoNode;
 };
 
 // Add any other structs you define here.
@@ -82,6 +86,10 @@ static void print_selection_indicator(Pokedex pokedex, struct pokenode *pokenode
 
 static void reset_pokedex(Pokedex pokedex);
 
+static struct pokenode *search_for_id(Pokedex pokedex, int id);
+
+static void print_evo_format(struct pokenode *pokenode);
+
 static void printerr(char *message);
 
 // You need to implement the following 20 functions.
@@ -92,9 +100,10 @@ static void printerr(char *message);
 Pokedex new_pokedex(void) {
     Pokedex new_pokedex = malloc(sizeof (struct pokedex));
     assert(new_pokedex != NULL);
-    // add your own code here
+
     new_pokedex->head = NULL;
     new_pokedex->numNodes = 0;
+    new_pokedex->lowestID = NULL_ID;
 
     return new_pokedex;
 }
@@ -130,8 +139,6 @@ void detail_pokemon(Pokedex pokedex) {
         } else {
             print_caught_pokemon(selectedPokenode);
         }
-    } else {
-        printerr("ERROR: The Pokédex is empty!");
     }
 
 }
@@ -151,8 +158,6 @@ void find_current_pokemon(Pokedex pokedex) {
 
     if (pokedex->head != NULL) {
         pokedex->selectedNode->found = TRUE;
-    } else {
-        printerr("ERROR: The Pokédex is empty!");
     }
 
 }
@@ -250,6 +255,7 @@ void remove_pokemon(Pokedex pokedex) {
 
 }
 
+//Does not check for empty Pokédex as that is done by remove_pokemon().
 void destroy_pokedex(Pokedex pokedex) {
 
     int i = 0;
@@ -269,8 +275,23 @@ void destroy_pokedex(Pokedex pokedex) {
 ////////////////////////////////////////////////////////////////////////
 
 void go_exploring(Pokedex pokedex, int seed, int factor, int how_many) {
-    fprintf(stderr, "exiting because you have not implemented the go_exploring function in pokedex.c\n");
-    exit(1);
+
+    if (factor < pokedex->lowestID || pokedex->head == NULL) {
+        printerr("ERROR: There are no Pokémon to be found in the given range!");
+    } else {
+        srand(seed);
+        int i = 0;
+        while (i < how_many) {
+
+            int idQuery = rand()%factor + 1;
+            struct pokenode *result = search_for_id(pokedex, idQuery);
+
+            if (result != NULL) {
+                result->found = TRUE;
+                i++;
+            }
+        }
+    }
 }
 
 int count_found_pokemon(Pokedex pokedex) {
@@ -297,18 +318,50 @@ int count_total_pokemon(Pokedex pokedex) {
 ////////////////////////////////////////////////////////////////////////
 
 void add_pokemon_evolution(Pokedex pokedex, int from_id, int to_id) {
-    fprintf(stderr, "exiting because you have not implemented the add_pokemon_evolution function in pokedex.c\n");
-    exit(1);
+
+    if (from_id == to_id) {
+        printerr("ERROR: Given IDs are identical!");
+    }
+
+    if(pokedex->head != NULL) {
+        struct pokenode *fromNode = search_for_id(pokedex, from_id);
+        struct pokenode *toNode = search_for_id(pokedex, to_id);
+
+        if (fromNode == NULL || toNode == NULL) {
+            printerr("No Pokémon with given ID found in Pokédex!");
+        } else {
+            fromNode->evoNode = toNode;
+        }
+
+    } else {
+        printerr("ERROR: The Pokédex is empty!");
+    }
+
 }
 
 void show_evolutions(Pokedex pokedex) {
-    fprintf(stderr, "exiting because you have not implemented the show_evolutions function in pokedex.c\n");
-    exit(1);
+
+    struct pokenode *p = pokedex->selectedNode;
+
+    while(p->evoNode != NULL) {
+        print_evo_format(p);
+        printf(" --> ");
+        p = p->evoNode;
+    }
+    print_evo_format(p);
+    printf("\n");
+
 }
 
 int get_next_evolution(Pokedex pokedex) {
-    fprintf(stderr, "exiting because you have not implemented the get_next_evolution function in pokedex.c\n");
-    exit(1);
+
+    struct pokenode *node = pokedex->selectedNode;
+    if (node->evoNode != NULL) {
+        return pokemon_id(node->evoNode->pokemon);
+    } else {
+        return DOES_NOT_EVOLVE;
+    }
+
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -349,6 +402,7 @@ static struct pokenode *create_pokenode(Pokemon pokemon) {
     node->next = NULL;
     node->pokemon = pokemon;
     node->found = FALSE;
+    node->evoNode = NULL;
 
     return node;
 
@@ -359,15 +413,20 @@ static struct pokenode *create_pokenode(Pokemon pokemon) {
 //as the selected node, which does not change when adding a Pokémon.
 //Otherwise, it simply points the last node's next pointer to the newly created
 //node. Finally, it increments the number of nodes in the list, and sets the
-//last node in the list to the new node.
+//last node in the list to the new node, and updates the lowest Pokémon ID in
+//the Pokédex (for use in exploration).
 static void add_node_to_dex(Pokedex pokedex, struct pokenode *node) {
     if (pokedex->numNodes == 0) {
         pokedex->head = node;
         node->previous = NULL;
         pokedex->selectedNode = pokedex->head;
+        pokedex->lowestID = pokemon_id(node->pokemon);
     } else {
         node->previous = pokedex->last;
         pokedex->last->next = node;
+        if (pokedex->lowestID > pokemon_id(node->pokemon)) {
+            pokedex->lowestID = pokemon_id(node->pokemon);
+        }
     }
 
     pokedex->last = node;
@@ -427,7 +486,6 @@ static void print_caught_pokemon(struct pokenode *pokenode) {
     printf("Type: %s", pokemon_type_to_string(firstType));
     if (secondType != NONE_TYPE) {
         printf(" %s", pokemon_type_to_string(secondType));
-
     }
     printf("\n");
 
@@ -446,6 +504,10 @@ static void print_censored_name(const char *name) {
 
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// MAYBE GET RID OF THIS FUNCTION                                             //
+////////////////////////////////////////////////////////////////////////////////
+
 //print_first_pokemon begins the list when the 'p' command is called by printing
 //the first, or header, Pokémon.
 static void print_first_pokemon(Pokedex pokedex) {
@@ -456,7 +518,7 @@ static void print_first_pokemon(Pokedex pokedex) {
 
     print_selection_indicator(pokedex, headerNode);
 
-    printf("    #%03d: ", id);
+    printf("#%03d: ", id);
     if (headerNode->found == FALSE) {
         print_censored_name(name);
     } else {
@@ -465,6 +527,8 @@ static void print_first_pokemon(Pokedex pokedex) {
 
 }
 
+//print_pokemon_to_list formats the Pokémon's ID, and prints the Pokémon's name,
+//either censored or uncensored depending on it's found status.
 static void print_pokemon_to_list(Pokedex pokedex, struct pokenode *pokenode) {
 
     int id = pokemon_id(pokenode->pokemon);
@@ -472,7 +536,7 @@ static void print_pokemon_to_list(Pokedex pokedex, struct pokenode *pokenode) {
 
     print_selection_indicator(pokedex, pokenode);
 
-    printf("    #%03d: ", id);
+    printf("#%03d: ", id);
     if (pokenode->found == FALSE) {
         print_censored_name(name);
     } else {
@@ -481,16 +545,19 @@ static void print_pokemon_to_list(Pokedex pokedex, struct pokenode *pokenode) {
 
 }
 
+//print_selection_indicator prints either an arrow (-->) or blank space
+//depending on whether the given node is currently selected or not.
 static void print_selection_indicator(Pokedex pokedex, struct pokenode *pokenode) {
 
     if (pokedex->selectedNode == pokenode) {
-        printf("-->");
+        printf("--> ");
     } else {
-        printf("   ");
+        printf("    ");
     }
 
 }
 
+//reset_pokedex simply reverts the Pokédex to it's initial values.
 static void reset_pokedex(Pokedex pokedex) {
 
     pokedex->head = NULL;
@@ -500,10 +567,50 @@ static void reset_pokedex(Pokedex pokedex) {
 
 }
 
+//search_for_id searches through the entire Pokédex for the given ID, and if
+//found, returns a pointer to the node containing that Pokémon. Otherwise, it
+//simply returns a null pointer.
+static struct pokenode *search_for_id(Pokedex pokedex, int id) {
+
+    struct pokenode *p = pokedex->head;
+    while (p != NULL) {
+
+        if (pokemon_id(p->pokemon) == id) {
+            return p;
+        }
+
+        p = p->next;
+    }
+
+    return NULL;
+}
+
+//print_evo_format prints out a given pokenode's Pokémon's details. For example,
+//prints Porygon as "#137 Porygon [Normal]" if found, and "#137 ???? [????]", if
+//not.
+static void print_evo_format(struct pokenode *pokenode) {
+
+    int id = pokemon_id(pokenode->pokemon);
+    char *name = pokemon_name(pokenode->pokemon);
+    pokemon_type firstType = pokemon_first_type(pokenode->pokemon);
+    pokemon_type secondType = pokemon_second_type(pokenode->pokemon);
+
+    printf("#%03d ", id);
+    if (pokenode->found) {
+        printf("%s [%s", name, pokemon_type_to_string(firstType));
+        if (secondType != NONE_TYPE) {
+            printf(" %s", pokemon_type_to_string(secondType));
+        }
+        printf("]");
+    } else {
+        printf("???? [????]");
+    }
+
+}
 
 //printerr is a quick helper function to make outputting errors a bit easier.
 //Colours an input string red and prints it to the error output stream.
 static void printerr(char *message) {
-        fprintf(stderr, COL_ERR_RED"%s\n"COL_ERR_RESET, message);
+        fprintf(stderr, RED"%s\n"RESET, message);
         exit(1);
 }
