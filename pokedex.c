@@ -178,19 +178,21 @@ void prev_pokemon(Pokedex pokedex) {
 
 void change_current_pokemon(Pokedex pokedex, int id) {
 
-    struct pokenode *match = NULL;
-    struct pokenode *p = pokedex->head;
+    if (pokedex->head != NULL) {
+        struct pokenode *match = NULL;
+        struct pokenode *p = pokedex->head;
 
-    //Iterate through the Pokédex until a matching ID is found.
-    while (match == NULL && p != NULL) {
-        if (pokemon_id(p->pokemon) == id) {
-            match = p;
+        //Iterate through the Pokédex until a matching ID is found.
+        while (match == NULL && p != NULL) {
+            if (pokemon_id(p->pokemon) == id) {
+                match = p;
+            }
+            p = p->next;
         }
-        p = p->next;
-    }
 
-    if (match != NULL) {
-        pokedex->selectedNode = match;
+        if (match != NULL) {
+            pokedex->selectedNode = match;
+        }
     }
 
 }
