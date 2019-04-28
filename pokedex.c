@@ -3,6 +3,7 @@
 //
 // This program was written by Avi Dargan (z5258082)
 // on 23/04/19-02/05-19
+//
 // Version 1.1.1: Renamed "pokemon_id" to "id" in change_current_pokemon.
 
 #include <stdio.h>
@@ -12,13 +13,18 @@
 #include "pokedex.h"
 
 ////////////////////////////////////////////////////////////////////////////////
-//                             AVI's DEFINITIONS                             //
+//                              MY DEFINITIONS                               //
 //////////////////////////////////////////////////////////////////////////////
 
 #define TRUE 1
 #define FALSE 0
 
+//Used when initialising a new Pokédex, as -1 is an invalid Pokémon ID.
 #define NULL_ID -1
+
+//Difference between the ASCII codes of a lowercase letter and its capital
+//counterpart, i.e. 'a' - 'A'.
+#define CAPITAL_DIFFERENCE 32
 
 struct pokedex {
     struct pokenode *head;
@@ -36,9 +42,8 @@ struct pokenode {
     struct pokenode *evoNode;
 };
 
-
 ////////////////////////////////////////////////////////////////////////////////
-//                             AVI's PROTOTYPES                              //
+//                               MY PROTOTYPES                               //
 //////////////////////////////////////////////////////////////////////////////
 
 static struct pokenode *create_pokenode(Pokemon pokemon);
@@ -53,6 +58,7 @@ static void print_first_pokemon(Pokedex pokedex);
 static void print_pokemon_to_list(Pokedex pokedex, struct pokenode *pokenode);
 static void print_selection_indicator(Pokedex pokedex, struct pokenode *pokenode);
 
+static void destroy_and_free(struct pokenode *pokenode);
 static void reset_pokedex(Pokedex pokedex);
 
 static struct pokenode *search_for_id(Pokedex pokedex, int id);
@@ -81,7 +87,6 @@ Pokedex new_pokedex(void) {
 
     new_pokedex->head = NULL;
     new_pokedex->selectedNode = NULL;
-    new_pokedex->selectedNode = NULL;
     new_pokedex->numNodes = 0;
     new_pokedex->lowestID = NULL_ID;
 
@@ -98,20 +103,13 @@ void add_pokemon(Pokedex pokedex, Pokemon pokemon) {
     check_for_duplicate_id(pokedex, node);
     add_node_to_dex(pokedex, node);
 
-    //DEBUG OUTPUT
-    // printf("numNodes = %d\n", pokedex->numNodes);
-    // printf("head= %p\n", pokedex->head);
-    // printf("second= %p\n", pokedex->head->next);
-    // if(pokedex->numNodes >=2) {
-    //     printf("third= %p\n", pokedex->head->next->next);
-    // }
-    // printf("\nselected node: %p\n", pokedex->selectedNode);
-    // printf("last node: %p\n", pokedex->last);
 }
 
 void detail_pokemon(Pokedex pokedex) {
 
+    //Check to see that given Pokédex is not empty.
     if (pokedex->head != NULL) {
+
         struct pokenode *selectedPokenode = pokedex->selectedNode;
 
         if (selectedPokenode->found == FALSE) {
@@ -119,6 +117,7 @@ void detail_pokemon(Pokedex pokedex) {
         } else {
             print_caught_pokemon(selectedPokenode);
         }
+
     }
 
 }
@@ -127,6 +126,7 @@ Pokemon get_current_pokemon(Pokedex pokedex) {
 
     if (pokedex->head == NULL) {
         printerr("ERROR: The Pokédex is empty!");
+        //Following return statement is to quieten gcc/dcc's warning.
         return NULL;
     } else {
         return pokedex->selectedNode->pokemon;
@@ -145,12 +145,13 @@ void find_current_pokemon(Pokedex pokedex) {
 void print_pokemon(Pokedex pokedex) {
 
     if (pokedex->head != NULL) {
-        print_first_pokemon(pokedex);
-        struct pokenode *p = pokedex->head->next;
+        //Iterate through the Pokédex and print the Pokémon to the list.
+        struct pokenode *p = pokedex->head;
         while (p != NULL) {
             print_pokemon_to_list(pokedex, p);
             p = p->next;
         }
+
     }
 
 }
@@ -180,6 +181,7 @@ void change_current_pokemon(Pokedex pokedex, int id) {
     struct pokenode *match = NULL;
     struct pokenode *p = pokedex->head;
 
+    //Iterate through the Pokédex until a matching ID is found.
     while (match == NULL && p != NULL) {
         if (pokemon_id(p->pokemon) == id) {
             match = p;
@@ -198,49 +200,59 @@ void remove_pokemon(Pokedex pokedex) {
     if (pokedex->head != NULL) {
         if (pokedex->numNodes == 1) {
 
-            destroy_pokemon(pokedex->head->pokemon);
-            free(pokedex->head);
+            //If the Pokédex only has ONE Pokémon, destroy the
+            //Pokémon and reset the Pokédex.
+            destroy_and_free(pokedex->selectedNode);
             reset_pokedex(pokedex);
 
         } else if (pokedex->selectedNode == pokedex->last) {
 
+            //If the Pokédex only has >1 Pokémon, and the selected node
+            //is the LAST in the linked list, destroy it, after setting
+            //the selected node to be the one prior.
             pokedex->selectedNode = pokedex->last->previous;
-            destroy_pokemon(pokedex->last->pokemon);
-            free(pokedex->last);
+            destroy_and_free(pokedex->last);
+
             pokedex->selectedNode->next = NULL;
             pokedex->last = pokedex->selectedNode;
             pokedex->numNodes -= 1;
 
         } else if (pokedex->selectedNode == pokedex->head && pokedex->numNodes > 1){
 
+            //If the Pokédex only has >1 Pokémon, and the selected node
+            //is the FIRST in the linked list, destroy it, after setting
+            //the selected node to be the next node.
             pokedex->selectedNode = pokedex->head->next;
-            destroy_pokemon(pokedex->head->pokemon);
-            free(pokedex->head);
+            destroy_and_free(pokedex->head);
+
             pokedex->selectedNode->previous = NULL;
             pokedex->head = pokedex->selectedNode;
             pokedex->numNodes -= 1;
 
         } else {
 
+            //Otherwise, we temporarily store the node, shuffle around it's
+            //adjacent nodes to maintain the order, and then destroy it.
             struct pokenode *memToFree = pokedex->selectedNode;
+
             pokedex->selectedNode = pokedex->selectedNode->next;
             pokedex->selectedNode->previous = memToFree->previous;
             pokedex->selectedNode->previous->next = pokedex->selectedNode;
             pokedex->numNodes -= 1;
 
-            destroy_pokemon(memToFree->pokemon);
-            free(memToFree);
+            destroy_and_free(memToFree);
         }
     }
 
 }
 
-//Does not check for empty Pokédex as that is done by remove_pokemon().
 void destroy_pokedex(Pokedex pokedex) {
 
     int i = 0;
     int maxIterations = pokedex->numNodes;
 
+    //Iterate through the Pokédex calling the above function for every node,
+    //and then free the memory allocated to the Pokédex.
     while (i < maxIterations) {
         remove_pokemon(pokedex);
         i++;
@@ -259,7 +271,11 @@ void go_exploring(Pokedex pokedex, int seed, int factor, int how_many) {
     if (factor < pokedex->lowestID || pokedex->head == NULL) {
         printerr("ERROR: There are no Pokémon to be found in the given range!");
     } else {
+
         srand(seed);
+
+        //Keep randomly generating a Pokémon ID between 1-factor+1.
+        //If a matching Pokémon is in the Pokédex, mark it as found.
         int i = 0;
         while (i < how_many) {
 
@@ -270,8 +286,11 @@ void go_exploring(Pokedex pokedex, int seed, int factor, int how_many) {
                 result->found = TRUE;
                 i++;
             }
+
         }
+
     }
+
 }
 
 int count_found_pokemon(Pokedex pokedex) {
@@ -304,6 +323,10 @@ void add_pokemon_evolution(Pokedex pokedex, int from_id, int to_id) {
     }
 
     if(pokedex->head != NULL) {
+
+        //Ensure that the given ID's actually represent Pokémon in the Pokédex.
+        //If they do, store the fact that from_id evolves into to_id in the
+        //node's they represent.
         struct pokenode *fromNode = search_for_id(pokedex, from_id);
         struct pokenode *toNode = search_for_id(pokedex, to_id);
 
@@ -324,11 +347,14 @@ void show_evolutions(Pokedex pokedex) {
     if (pokedex->head != NULL) {
         struct pokenode *p = pokedex->selectedNode;
 
+        //Iterate continously through the evolution tree until there is
+        //no further evolution, and print out the information.
         while(p->evoNode != NULL) {
             print_evo_format(p);
             printf(" --> ");
             p = p->evoNode;
         }
+
         print_evo_format(p);
         printf("\n");
     }
@@ -341,8 +367,6 @@ int get_next_evolution(Pokedex pokedex) {
         if (node->evoNode != NULL) {
             return pokemon_id(node->evoNode->pokemon);
         }
-
-        return DOES_NOT_EVOLVE;
     }
 
     return DOES_NOT_EVOLVE;
@@ -387,7 +411,7 @@ Pokedex search_pokemon(Pokedex pokedex, char *text) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//                              AVI's FUNCTIONS                              //
+//                               MY FUNCTIONS                                //
 //////////////////////////////////////////////////////////////////////////////
 
 //create_pokenode utilised malloc to assign a chunk of memory to a pokenode,
@@ -504,29 +528,6 @@ static void print_censored_name(const char *name) {
 
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// MAYBE GET RID OF THIS FUNCTION                                             //
-////////////////////////////////////////////////////////////////////////////////
-
-//print_first_pokemon begins the list when the 'p' command is called by printing
-//the first, or header, Pokémon.
-static void print_first_pokemon(Pokedex pokedex) {
-
-    struct pokenode *headerNode = pokedex->head;
-    int id = pokemon_id(headerNode->pokemon);
-    const char *name = pokemon_name(headerNode->pokemon);
-
-    print_selection_indicator(pokedex, headerNode);
-
-    printf("#%03d: ", id);
-    if (headerNode->found == FALSE) {
-        print_censored_name(name);
-    } else {
-        printf("%s\n", name);
-    }
-
-}
-
 //print_pokemon_to_list formats the Pokémon's ID, and prints the Pokémon's name,
 //either censored or uncensored depending on it's found status.
 static void print_pokemon_to_list(Pokedex pokedex, struct pokenode *pokenode) {
@@ -554,6 +555,14 @@ static void print_selection_indicator(Pokedex pokedex, struct pokenode *pokenode
     } else {
         printf("    ");
     }
+
+}
+
+//destroy_and_free just calls free and destroy_pokemon() to condense code.
+static void destroy_and_free(struct pokenode *pokenode) {
+
+    destroy_pokemon(pokenode->pokemon);
+    free(pokenode);
 
 }
 
@@ -637,8 +646,8 @@ static void populate_subDex_types(Pokedex pokedex, Pokedex subDex, pokemon_type 
 
 }
 
-//Checks if the passed Pokémon (inside the pokenode) is of the given type, be it
-//primary or secondary.
+//common_type checks if the passed Pokémon (inside the pokenode) is of the given
+//type, be it primary or secondary.
 static int common_type(struct pokenode *node, pokemon_type type) {
 
     if (pokemon_first_type(node->pokemon) == type) {
@@ -651,8 +660,8 @@ static int common_type(struct pokenode *node, pokemon_type type) {
 
 }
 
-//Finds every "found" Pokémon in the original Pokédex, and copies
-//them to the subDex.
+//populate_subDex_found finds every "found" Pokémon in the original Pokédex, and
+//copies them to the subDex.
 static void populate_subDex_found(Pokedex pokedex, Pokedex subDex) {
 
     struct pokenode *p = pokedex->head;
@@ -674,33 +683,54 @@ static void populate_subDex_found(Pokedex pokedex, Pokedex subDex) {
 static void add_pokemon_in_order(Pokedex pokedex, struct pokenode *node) {
 
     if (pokedex->numNodes == 0) {
+
+        //If there are no nodes in the new Pokédex, we can simply add it
+        //regularly.
         pokedex->head = node;
         node->previous = NULL;
         pokedex->selectedNode = pokedex->head;
         pokedex->lowestID = pokemon_id(node->pokemon);
+
     } else {
+
         if (pokemon_id(node->pokemon) < pokemon_id(pokedex->head->pokemon)) {
+
+            //If the Pokémon is to be added to the front of the linked list,
+            //shuffle everything forward, and set the new head to be the new
+            //pokenode.
             node->next = pokedex->head;
             pokedex->head = node;
             node->next->previous = node;
             pokedex->selectedNode = node;
             pokedex->lowestID = pokemon_id(node->pokemon);
+
         } else {
+
+            //If the node is to be added elsewhere, iterate through the list
+            //until the correct position is reached.
             struct pokenode *p = pokedex->head;
             while(p->next != NULL && (pokemon_id(node->pokemon) > pokemon_id(p->next->pokemon))) {
                 p = p->next;
             }
+
+            //Insert the new node infront of p, and before p->next.
             node->next = p->next;
             p->next = node;
             node->previous = p;
+
+            //If the node is the last in the list, declare it as such.
+            //Otherwise, set the next node's previous node to be the new node.
             if (node->next == NULL) {
                 pokedex->last = node;
             } else {
                 node->next->previous = node;
             }
+
         }
+
     }
 
+    //Increment the number of nodes.
     pokedex->numNodes++;
 }
 
@@ -720,6 +750,14 @@ static void populate_subDex_search(Pokedex pokedex, Pokedex subDex, char *query)
 
 }
 
+//contains_search finds the length of the two input strings, and creates two
+//strings of EXACTLY that size, +1, to account for the escape character '\0'.
+//From here, it converts both strings into only lowercase, to ensure that it
+//finds matches regardless of case.
+//It then creates two counter variables, which iterate through the characters of
+//each string. As long as query is a substring of text, i should equal j, and
+//hence, once the loop ends at the escape character for the query, i should
+//represent the placement of the escape character in the query string.
 static int contains_search(char *text, char *query) {
 
     int textLength = length_of_string(text) + 1;
@@ -727,13 +765,16 @@ static int contains_search(char *text, char *query) {
     char lwrText[textLength];
     char lwrQuery[queryLength];
 
+    //You can't find 'Gastlyyyy' in 'Gastly', and thus,
+    //return FALSE, for every query that is longer than the
+    //Pokémon's name.
     if (queryLength > textLength) {
         return FALSE;
     }
 
     for (int i = 0; i < textLength; i++) {
         if (text[i] >= 'A' && text[i] <= 'Z') {
-            lwrText[i] = text[i] + 32;
+            lwrText[i] = text[i] + CAPITAL_DIFFERENCE;
         } else {
             lwrText[i] = text[i];
         }
@@ -741,7 +782,7 @@ static int contains_search(char *text, char *query) {
 
     for (int i = 0; i < queryLength; i++) {
         if (query[i] >= 'A' && query[i] <= 'Z') {
-            lwrQuery[i] = query[i] + 32;
+            lwrQuery[i] = query[i] + CAPITAL_DIFFERENCE;
         } else {
             lwrQuery[i] = query[i];
         }
@@ -750,7 +791,7 @@ static int contains_search(char *text, char *query) {
     int i = 0;
     int j = 0;
 
-    //Following 10 (exactly) lines of general purpose C code are based on the
+    //Following 10 lines of general purpose C code are based on the
     //following StackOverflow answer by user MikeCAT (25/02/16).
     //https://stackoverflow.com/a/35631538
     while ((lwrText[j] != '\0') && (lwrQuery[i] != '\0')) {
@@ -767,7 +808,8 @@ static int contains_search(char *text, char *query) {
     return FALSE;
 }
 
-//length_of_string returns the length of the given string.
+//length_of_string returns the length of the given string, excluding the
+//escape character.
 static int length_of_string(char *string) {
 
     int i = 0;
