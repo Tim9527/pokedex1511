@@ -53,11 +53,13 @@
 //                               MY PROTOTYPES                               //
 //////////////////////////////////////////////////////////////////////////////
 
-static void empty_pokedex_testing(void);
 static void test_exploration_boundary(void);
 static void test_nested_pokedex(void);
 static void test_long_evo(void);
 static void test_subdex_removal(void);
+static void empty_pokedex_testing(void);
+static void test_subdex_evolution(void);
+static void single_pokemon_testing();
 
 static Pokemon create_placeholdermon(void);
 static void randomly_populate(Pokedex pokedex, int numPkmn);
@@ -96,8 +98,10 @@ int main(int argc, char *argv[]) {
 
     //MY TESTS:
     empty_pokedex_testing();
+    single_pokemon_testing();
     test_exploration_boundary();
     test_long_evo();
+    test_subdex_evolution();
     test_subdex_removal();
     test_nested_pokedex();
 
@@ -333,6 +337,85 @@ static void empty_pokedex_testing(void) {
     printf(">> Passed empty Pokédex tests!\n");
 }
 
+//single_pokemon_testing ensures that all the functions perform correctly
+//when used on a Pokédex with one Pokémon.
+static void single_pokemon_testing(void) {
+
+    printf("\n>> Testing functions on a Pokédex with one Pokémon.\n");
+
+    printf("    ... Creating the empty Pokédex.\n");
+    Pokedex pokedex = new_pokedex();
+
+    printf("    ... Creating a Placeholdermon.\n");
+    Pokemon placeholdermon = create_placeholdermon();
+
+    printf("    ... Adding Placeholdermon to the Pokédex.\n");
+    add_pokemon(pokedex, placeholdermon);
+
+    printf("    ... Detailing Placeholdermon (CENSORED).\n\n");
+    detail_pokemon(pokedex);
+
+    printf("\n    ... Getting current Pokémon, i.e., Placeholdermon.\n");
+    get_current_pokemon(pokedex);
+
+    printf("    ... Finding current Pokémon.\n");
+    find_current_pokemon(pokedex);
+    assert(count_found_pokemon(pokedex) == 1);
+
+    printf("    ... Printing a list with only Placeholdermon.\n\n");
+    print_pokemon(pokedex);
+
+    printf("\n    ... Navigating forwards to a non-existent Pokémon.\n");
+    next_pokemon(pokedex);
+    assert(get_current_pokemon(pokedex) == placeholdermon);
+
+    printf("    ... Navigating backwards to a non-existent Pokémon.\n");
+    prev_pokemon(pokedex);
+    assert(get_current_pokemon(pokedex) == placeholdermon);
+
+    printf("    ... Navigating to the non-existent Pokémon with ID: 100.\n");
+    change_current_pokemon(pokedex, 100);
+    assert(get_current_pokemon(pokedex) == placeholdermon);
+
+    printf("    ... Remove Placeholdermon.\n");
+    remove_pokemon(pokedex);
+    assert(count_total_pokemon(pokedex) == 0);
+
+    printf("    ... Adding Placeholdermon back, and finding it again.\n");
+    Pokemon newPlaceholdermon = create_placeholdermon();
+    add_pokemon(pokedex, newPlaceholdermon);
+    find_current_pokemon(pokedex);
+
+    printf("    ... Ensuring the number of found Pokémon is 1.\n");
+    assert(count_found_pokemon(pokedex) == 1);
+
+    printf("    ... Ensuring the total number of Pokémon is 1.\n");
+    assert(count_total_pokemon(pokedex) == 1);
+
+    printf("    ... Adding a random Pokémon and finding it.\n");
+    Pokemon randomEvolution = random_pokemon(PLACEHOLDER_ID+1);
+    add_pokemon(pokedex, randomEvolution);
+    next_pokemon(pokedex);
+    find_current_pokemon(pokedex);
+    prev_pokemon(pokedex);
+    assert(count_total_pokemon(pokedex) == 2);
+
+    printf("    ... Setting the random Pokémon as the evolution.\n");
+    add_pokemon_evolution(pokedex, PLACEHOLDER_ID, PLACEHOLDER_ID+1);
+    assert(get_next_evolution(pokedex) != DOES_NOT_EVOLVE);
+
+    printf("    ... Showing the evolutions of Placeholdermon.\n\n");
+    show_evolutions(pokedex);
+
+    printf("\n    ... Ensuring the next evolution of a non-existent Pokémon is not DOES_NOT_EVOLVE.\n");
+    assert(get_next_evolution(pokedex) != DOES_NOT_EVOLVE);
+
+    printf("    ... Destroying the Pokedex.\n");
+    destroy_pokedex(pokedex);
+
+    printf(">> Passed single Pokémon tests!\n");
+}
+
 //test_exploration_boundary specifically checks if in an exploration with the
 //lowest Pokémon ID, x, if a factor of x, which should ideally represent the
 //ID's from 1 to x, returns an error.
@@ -394,6 +477,48 @@ static void test_long_evo(void) {
     printf("\n>> Passed long evolution chain testing!\n");
 }
 
+//Ensures that there are NO evolutions in a SubDex, by creating a Pokédex with
+//a 100-length chain of evolutions, and then creating a SubDex from that.
+static void test_subdex_evolution(void) {
+
+    printf("\n>> Testing SubDex evolution behavious.\n");
+
+    printf("    ... Creating a new original Pokédex.\n");
+    Pokedex pokedex = new_pokedex();
+
+    printf("    ... Populating it with 100 random Pokémon.\n");
+    randomly_populate(pokedex, 100);
+
+    printf("    ... Finding every Pokémon.\n");
+    for (int i = 0; i < 100; i++) {
+        find_current_pokemon(pokedex);
+        next_pokemon(pokedex);
+    }
+
+    printf("    ... Chaining together evolutions.\n");
+    for (int i = 1; i < 100; i++) {
+        add_pokemon_evolution(pokedex, i, i+1);
+    }
+
+    printf("    ... Creating a Pokédex of found Pokémon.\n");
+    Pokedex foundDex = get_found_pokemon(pokedex);
+
+    printf("    ... Checking that all 100 Pokémon do not have evolutions.\n");
+    for (int i = 0; i < 100; i++) {
+        assert(get_next_evolution(foundDex) == DOES_NOT_EVOLVE);
+        next_pokemon(foundDex);
+    }
+
+    printf("    ... Destroying the Pokédex of found Pokémon.\n");
+    destroy_pokedex(foundDex);
+
+    printf("    ... Destroying the original Pokedex.\n");
+    destroy_pokedex(pokedex);
+
+    printf("\n>> Passed SubDex evolution testing!\n");
+
+}
+
 //test_subdex_removal observes the behaviour of removal of a Pokémon inside a
 //SubDex. After creating a SubDex of 50 found Pokémon from a Pokédex of 100
 //random Pokémon, we can remove 25 Pokémon from this SubDex, and check that:
@@ -434,10 +559,10 @@ static void test_subdex_removal(void) {
     printf("    ... and that the No. of Pokémon in original Pokédex is 100.\n");
     assert(count_total_pokemon(pokedex) == 100);
 
-    printf("\n    ... Destroying the SubDex.\n");
+    printf("    ... Destroying the SubDex.\n");
     destroy_pokedex(foundDex);
 
-    printf("\n    ... Destroying the Pokedex.\n");
+    printf("    ... Destroying the Pokedex.\n");
     destroy_pokedex(pokedex);
 
     printf(">> Passed SubDex removal testing!\n");
@@ -477,19 +602,19 @@ static void test_nested_pokedex(void) {
     printf("    ... Creating a new Pokédex of Pokémon with the letter 'A'.\n");
     Pokedex searchDex = search_pokemon(ghostDex, "a");
 
-    printf("    ... Here's the results!\n\n");
+    printf("    ... Here's the results! (usually empty)\n\n");
     print_pokemon(searchDex);
 
     printf("\n    ... Destroying the searched Pokédex.\n");
     destroy_pokedex(searchDex);
 
-    printf("\n    ... Destroying the Ghost types Pokédex.\n");
+    printf("    ... Destroying the Ghost types Pokédex.\n");
     destroy_pokedex(ghostDex);
 
-    printf("\n    ... Destroying the found Pokédex.\n");
+    printf("    ... Destroying the found Pokédex.\n");
     destroy_pokedex(foundDex);
 
-    printf("\n    ... Destroying the original Pokédex.\n");
+    printf("    ... Destroying the original Pokédex.\n");
     destroy_pokedex(pokedex);
 
     printf(">> Passed nested Pokedex testing!\n");
