@@ -27,9 +27,10 @@
 #define PLACEHOLDER_FIRST_TYPE NORMAL_TYPE
 #define PLACEHOLDER_SECOND_TYPE GHOST_TYPE
 
-#define NUMTYPES 17
+//The number of valid types, used when selecting a random type from an array.
+#define NUMTYPES 18
 
-//Change this seed manually to shuffle all tests with random elements.
+//Change this seed manually to re-randomise all tests with random elements.
 #define PLACEHOLDER_SEED 1511
 
 // Sample data on Bulbasaur, the Pokemon with pokemon_id 1.
@@ -53,14 +54,20 @@
 //                               MY PROTOTYPES                               //
 //////////////////////////////////////////////////////////////////////////////
 
+//Test Functions
 static void test_exploration_boundary(void);
 static void test_nested_pokedex(void);
 static void test_long_evo(void);
 static void test_subdex_removal(void);
 static void empty_pokedex_testing(void);
 static void test_subdex_evolution(void);
-static void single_pokemon_testing();
+static void single_pokemon_testing(void);
+static void pokedex_header_testing(void);
+static void pokedex_last_testing(void);
+static void ensure_evolution_overwrite(void);
+static void unaltered_original_pokedex(void);
 
+//Helper Functions
 static Pokemon create_placeholdermon(void);
 static void randomly_populate(Pokedex pokedex, int numPkmn);
 static Pokemon random_pokemon(int id);
@@ -99,8 +106,12 @@ int main(int argc, char *argv[]) {
     //MY TESTS:
     empty_pokedex_testing();
     single_pokemon_testing();
+    pokedex_header_testing();
+    pokedex_last_testing();
     test_exploration_boundary();
+    ensure_evolution_overwrite();
     test_long_evo();
+    unaltered_original_pokedex();
     test_subdex_evolution();
     test_subdex_removal();
     test_nested_pokedex();
@@ -343,7 +354,7 @@ static void single_pokemon_testing(void) {
 
     printf("\n>> Testing functions on a Pokédex with one Pokémon.\n");
 
-    printf("    ... Creating the empty Pokédex.\n");
+    printf("    ... Creating a Pokédex.\n");
     Pokedex pokedex = new_pokedex();
 
     printf("    ... Creating a Placeholdermon.\n");
@@ -416,6 +427,98 @@ static void single_pokemon_testing(void) {
     printf(">> Passed single Pokémon tests!\n");
 }
 
+//pokedex_header_testing checks to see if the functions that behave differently
+//when used on the first node in the linked list behave as they should.
+static void pokedex_header_testing(void) {
+
+    printf("\n>> Testing functions on the first Pokémon in a Pokédex.\n");
+
+    printf("    ... Creating a Pokédex.\n");
+    Pokedex pokedex = new_pokedex();
+
+    printf("    ... Adding a random Pokémon with ID 101 to the Pokédex.\n");
+    Pokemon randomPokemon101 = random_pokemon(101);
+    add_pokemon(pokedex, randomPokemon101);
+
+    printf("    ... Adding a random Pokémon with ID 102 to be next.\n");
+    Pokemon randomPokemon102 = random_pokemon(102);
+    add_pokemon(pokedex, randomPokemon102);
+
+    printf("    ... Populating it with another 100 random Pokémon.\n");
+    randomly_populate(pokedex, 100);
+
+    printf("    ... Ensuring the selected Pokémon is the first.\n");
+    assert(get_current_pokemon(pokedex) == randomPokemon101);
+
+    printf("    ... Navigating backwards to a non-existent Pokémon.\n");
+    prev_pokemon(pokedex);
+    assert(get_current_pokemon(pokedex) == randomPokemon101);
+
+    printf("    ... Navigating forwards to the next Pokémon.\n");
+    next_pokemon(pokedex);
+    assert(get_current_pokemon(pokedex) == randomPokemon102);
+
+    printf("    ... Removing the first Pokémon (ID: #101).\n");
+    prev_pokemon(pokedex);
+    remove_pokemon(pokedex);
+
+    printf("    ... Ensuring that the Pokémon with ID: #102 is selected.\n");
+    assert(get_current_pokemon(pokedex) == randomPokemon102);
+
+    printf("    ... Destroying the Pokédex.\n");
+    destroy_pokedex(pokedex);
+
+    printf(">> Passed header Pokémon boundary tests!\n");
+}
+
+//pokedex_last_testing checks to see if the functions that behave differently
+//when used on the last node in the linked list behave as they should.
+static void pokedex_last_testing(void) {
+
+    printf("\n>> Testing functions on the last Pokémon in a Pokédex.\n");
+
+    printf("    ... Creating a Pokédex.\n");
+    Pokedex pokedex = new_pokedex();
+
+    printf("    ... Populating it with 98 random Pokémon.\n");
+    randomly_populate(pokedex, 98);
+
+    printf("    ... Adding a random Pokémon with ID: 99 to the end.\n");
+    Pokemon randomPokemon99 = random_pokemon(99);
+    add_pokemon(pokedex, randomPokemon99);
+
+    printf("    ... Adding a random Pokémon with ID: 100 to the end.\n");
+    Pokemon randomPokemon100 = random_pokemon(100);
+    add_pokemon(pokedex, randomPokemon100);
+
+    printf("    ... Moving to the last Pokémon.\n");
+    change_current_pokemon(pokedex, 100);
+
+    printf("    ... Ensuring the last Pokémon has the ID: #100.\n");
+    assert(get_current_pokemon(pokedex) == randomPokemon100);
+
+    printf("    ... Navigating forwards to a non-existent Pokémon.\n");
+    next_pokemon(pokedex);
+    assert(get_current_pokemon(pokedex) == randomPokemon100);
+
+    printf("    ... Navigating backwards to the previous Pokémon.\n");
+    prev_pokemon(pokedex);
+    assert(get_current_pokemon(pokedex) == randomPokemon99);
+
+    printf("    ... Removing the last Pokémon (ID: #100).\n");
+    next_pokemon(pokedex);
+    remove_pokemon(pokedex);
+
+    printf("    ... Ensuring there is 99 Pokémon and that #099 is selected.\n");
+    assert(count_total_pokemon(pokedex) == 99);
+    assert(get_current_pokemon(pokedex) == randomPokemon99);
+
+    printf("    ... Destroying the Pokédex.\n");
+    destroy_pokedex(pokedex);
+
+    printf(">> Passed last Pokémon boundary tests!\n");
+}
+
 //test_exploration_boundary specifically checks if in an exploration with the
 //lowest Pokémon ID, x, if a factor of x, which should ideally represent the
 //ID's from 1 to x, returns an error.
@@ -442,6 +545,34 @@ static void test_exploration_boundary(void) {
     destroy_pokedex(pokedex);
 
     printf(">> Passed exploration boundary tests!\n");
+}
+
+//ensure_evolution_overwrite checks to make sure that when an evolution is added
+//to a Pokémon that already had evolution information, that only the new
+//information is stored.
+static void ensure_evolution_overwrite(void) {
+
+    printf("\n>> Testing evolution overwriting.\n");
+
+    printf("    ... Creating a new original Pokédex.\n");
+    Pokedex pokedex = new_pokedex();
+
+    printf("    ... Populating it with 3 random Pokémon.\n");
+    randomly_populate(pokedex, 3);
+
+    printf("    ... Creating the evolution: #001 --> #002.\n");
+    add_pokemon_evolution(pokedex,1,2);
+
+    printf("    ... Creating the evolution: #001 --> #003.\n");
+    add_pokemon_evolution(pokedex,1,3);
+
+    printf("    ... Checking to see if the evolution was overwritten.\n");
+    assert(get_next_evolution(pokedex) == 3);
+
+    printf("\n   ... Destroying the Pokedex.\n");
+    destroy_pokedex(pokedex);
+
+    printf("\n>> Passed evolution overwrite testing!\n");
 }
 
 //test_long_evo simply just tests an evolution chain of 100 random Pokémon.
@@ -477,7 +608,62 @@ static void test_long_evo(void) {
     printf("\n>> Passed long evolution chain testing!\n");
 }
 
-//Ensures that there are NO evolutions in a SubDex, by creating a Pokédex with
+//unaltered_original_pokedex ensures that the original Pokédex from which a
+//SubDex is created, remains unedited when a SubDex is created.
+static void unaltered_original_pokedex(void) {
+
+    printf("\n>> Testing Pokédex alteration behaviour.\n");
+
+    printf("    ... Creating a new original Pokédex.\n");
+    Pokedex pokedex = new_pokedex();
+
+    printf("    ... Populating it with 100 random Pokémon.\n");
+    randomly_populate(pokedex, 100);
+
+    printf("    ... Finding every other Pokémon.\n");
+    for (int i = 0; i < 100; i++) {
+        if (i%2 != 0) {
+            find_current_pokemon(pokedex);
+        }
+        next_pokemon(pokedex);
+    }
+
+    printf("    ... Creating a Pokédex of found Pokémon.\n");
+    Pokedex foundDex = get_found_pokemon(pokedex);
+
+    printf("    ... Chaining together evolutions.\n");
+    for (int i = 1; i < 50; i++) {
+        add_pokemon_evolution(foundDex, i*2, (i+1)*2);
+    }
+
+    printf("    ... Removing every other Pokémon in the SubDex.\n");
+    for (int i = 0; i < 50; i++) {
+        if (i%2 != 0) {
+            remove_pokemon(foundDex);
+        }
+        next_pokemon(foundDex);
+    }
+
+    printf("    ... Checking that there are 100 nodes in the first Pokédex.\n");
+    assert(count_total_pokemon(pokedex) == 100);
+
+    printf("    ... Checking that all 100 original Pokémon do not evolve.\n");
+    for (int i = 0; i < 100; i++) {
+        assert(get_next_evolution(pokedex) == DOES_NOT_EVOLVE);
+        next_pokemon(pokedex);
+    }
+
+    printf("    ... Destroying the Pokédex of found Pokémon.\n");
+    destroy_pokedex(foundDex);
+
+    printf("    ... Destroying the original Pokedex.\n");
+    destroy_pokedex(pokedex);
+
+    printf("\n>> Passed Pokédex alteration testing!\n");
+
+}
+
+//test_subdex_evolution ensures that there are NO evolutions in a SubDex, by creating a Pokédex with
 //a 100-length chain of evolutions, and then creating a SubDex from that.
 static void test_subdex_evolution(void) {
 
@@ -571,7 +757,7 @@ static void test_subdex_removal(void) {
 
 //test_nested_pokedex ensures that nested SubDexes can be created, and explored.
 //For example, the below creates a Pokédex filled with 100 randomly named
-//Pokémon with varied secondary types. It then finds every second one, and
+//Pokémon with varied typings. It then finds every second one, and
 //creates a Pokédex with all the found Pokémon. It then looks to find every
 //single one that is a Ghost type, and then finds the Pokémon with the letter
 //'A' in their name. It then exits out of each Pokedex.
@@ -602,7 +788,7 @@ static void test_nested_pokedex(void) {
     printf("    ... Creating a new Pokédex of Pokémon with the letter 'A'.\n");
     Pokedex searchDex = search_pokemon(ghostDex, "a");
 
-    printf("    ... Here's the results! (usually empty)\n\n");
+    printf("    ... Here's the results! (often empty)\n\n");
     print_pokemon(searchDex);
 
     printf("\n    ... Destroying the searched Pokédex.\n");
@@ -677,8 +863,9 @@ static int is_copied_pokemon(Pokemon first, Pokemon second) {
     &&  (pokemon_second_type(first) == pokemon_second_type(second));
 }
 
-// Write your own helper functions here!
-
+////////////////////////////////////////////////////////////////////////////////
+//                            MY HELPER FUNCTIONS                            //
+//////////////////////////////////////////////////////////////////////////////
 
 //create_placeholdermon is a helper function to create Placeholdermon for
 //testing purposes.
@@ -707,7 +894,7 @@ static void randomly_populate(Pokedex pokedex, int numPkmn) {
 }
 
 //random_pokemon returns a randomly generated Pokémon, with a given id, random
-//name, and a primary Normal typing, and a random secondary type.
+//name, and a random typing.
 static Pokemon random_pokemon(int id) {
 
     //Create a random name with varying case.
@@ -725,15 +912,22 @@ static Pokemon random_pokemon(int id) {
     name[i] = '\0';
 
     pokemon_type validTypes[NUMTYPES] = {
-        FIRE_TYPE, FIGHTING_TYPE, WATER_TYPE, FLYING_TYPE, GRASS_TYPE,
-        POISON_TYPE, ELECTRIC_TYPE, GROUND_TYPE, PSYCHIC_TYPE, ROCK_TYPE,
-        ICE_TYPE, BUG_TYPE, DRAGON_TYPE, GHOST_TYPE, DARK_TYPE,STEEL_TYPE,
-        FAIRY_TYPE
+        NORMAL_TYPE, FIRE_TYPE, FIGHTING_TYPE, WATER_TYPE, FLYING_TYPE,
+        GRASS_TYPE, POISON_TYPE, ELECTRIC_TYPE, GROUND_TYPE, PSYCHIC_TYPE,
+        ROCK_TYPE, ICE_TYPE, BUG_TYPE, DRAGON_TYPE, GHOST_TYPE, DARK_TYPE,
+        STEEL_TYPE, FAIRY_TYPE
     };
+
+    pokemon_type firstType = validTypes[rand()%NUMTYPES];
+    pokemon_type secondType = validTypes[rand()%NUMTYPES];
+
+    while (firstType == secondType) {
+        secondType = rand()%NUMTYPES;
+    }
 
     Pokemon pokemon = new_pokemon(
         id, name, PLACEHOLDER_HEIGHT, PLACEHOLDER_WEIGHT,
-        NORMAL_TYPE, validTypes[rand()%NUMTYPES]
+        firstType, secondType
     );
 
     return pokemon;
